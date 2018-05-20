@@ -1,0 +1,16 @@
+.idea/
+__pycache__/
+lib/*
+.ipynb_checkpoints/
+
+*.pyc
+*.json
+*.db
+*.xlsx
+*.pickle
+*.html
+*.zip
+*.docx
+*.log
+*.txt
+!requirements.txt
