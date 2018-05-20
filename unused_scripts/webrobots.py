@@ -4,7 +4,7 @@ urls_for_ids: 	a dictionary where the key is a project id and the value is the u
 WARNING: This script should be run with a 64 bit version of python27! It will run out of memory otherwise."""
 
 import json
-from kickstarter_updater import find_values_not_in_table, clean_url
+from kickstarter.kickstarter_updater import find_values_not_in_table, clean_url
 import db_connections
 import os
 
