@@ -1,3 +1,5 @@
+# TODO: update to local database
+
 import sys
 
 if '../' not in sys.path:
@@ -9,11 +11,8 @@ import traceback
 import numpy as np
 from scipy.interpolate import interp1d
 from currency_converter import CurrencyConverter
-import matplotlib.pyplot as plt
-import mpld3
 import json
 import os
-from mpld3 import plugins
 
 
 def convert_kickstarter_currency_df_to_usd(df, replace=True):

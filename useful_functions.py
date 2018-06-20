@@ -1,12 +1,13 @@
+import csv
+import math
 import os
 import smtplib
-from email.mime.text import MIMEText
-# import pandas as pd
-import numpy as np
-import math
-from currency_converter import CurrencyConverter, RateNotFoundError
 from decimal import Decimal, Context
-import csv
+from email.mime.text import MIMEText
+
+import numpy as np
+import pandas as pd
+from currency_converter import CurrencyConverter, RateNotFoundError
 
 
 def fast_insert_many(data, table, cur):
@@ -34,6 +35,17 @@ def split_array_into_chunks(data, chunk_size=50):
         yield data[i:i + chunk_size]
         i += chunk_size
     yield data[i:]
+
+
+def chunks(iterator, chunk_size):
+    results = []
+    for i, row in enumerate(iterator):
+        results.append(row)
+        if i % chunk_size == chunk_size - 1:
+            yield results
+            results = []
+    if len(results) != 0:
+        return results
 
 
 def ensure_directory(dir):

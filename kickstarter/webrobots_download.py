@@ -1,8 +1,12 @@
+import csv
 import json
 import os
-import csv
 import sqlite3
-import mysql.connector
+
+import lxml.html
+import requests
+
+from utils.download_utils import wget_urls
 
 
 def projects_from_webrobots(csv_location='/home/scrape/downloads'):
@@ -11,31 +15,31 @@ def projects_from_webrobots(csv_location='/home/scrape/downloads'):
     all_projects = []
     for dir_path, dir_names, file_names in os.walk('.'):
         for f_name in file_names:
-            with open(os.path.join(dir_path, f_name)) as f:
+            with open(os.path.join(dir_path, f_name), encoding='utf8') as f:
                 if f_name.endswith('.csv'):
-                    csv_reader = csv.reader(f, dialect='unix')
-                    columns = csv_reader.__next__()
-                    if columns[0] != 'id':
-                        print(columns)
-                        print(f.name)
-                        import sys
-
-                        sys.exit(1)
-                    if columns[26] != 'urls':
-                        print(columns)
-                        print(f.name)
-                        import sys
-
-                        sys.exit(1)
+                    csv_reader = csv.DictReader(f, dialect='unix')
                     for i, line in enumerate(csv_reader):
                         # print(line[0])
                         all_projects.append(
-                            (int(line[0]),
-                             json.loads(line[26])['web']['project'].split('?')[0].replace('http://', 'https://'))
+                            (int(line['id']),
+                             json.loads(line['urls'])['web']['project'].split('?')[0].replace('http://', 'https://'))
                         )
-
     os.chdir(orig_dir)
     return all_projects
+
+
+def get_all_webrobots_csv_urls():
+    if os.path.exists('all_webrobot_urls.txt'):
+        with open('all_webrobot_urls.txt') as f:
+            return [x.strip() for x in f.readlines()]
+    else:
+        url = 'https://webrobots.io/kickstarter-datasets/'
+        r = requests.get(url)
+        tree = lxml.html.fromstring(r.content)
+        with open('all_webrobot_urls.txt', 'w') as f:
+            urls = [x.attrib['href'] for x in tree.xpath('//a') if x.text == 'CSV']
+            f.writelines('\n'.join(urls))
+            return urls
 
 
 def get_projects_in_kickstarter_db(ks_cur):
@@ -43,7 +47,7 @@ def get_projects_in_kickstarter_db(ks_cur):
     return ks_cur.fetchall()
 
 
-if __name__ == '__main__':
+def run():
     with open('../lib/fungrosencrantz_login', 'r') as f:
         fung_login = json.load(f)
     ks_conn = mysql.connector.connect(user=fung_login['username'], database='kickstarter',
@@ -73,3 +77,10 @@ if __name__ == '__main__':
     ks_conn.close()
     int_cur.close()
     int_conn.close()
+
+
+def download_webrobots_csvs():
+    folder = 'webrobots_downloads'
+    urls = get_all_webrobots_csv_urls()
+    wget_urls(urls, overwrite=False, folder=folder)
+    print("Unzip them using 7zip now!")

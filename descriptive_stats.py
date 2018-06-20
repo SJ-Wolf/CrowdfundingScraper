@@ -1,13 +1,13 @@
-import os
-import smtplib
-from email.mime.text import MIMEText
-import pandas as pd
-import math
-from currency_converter import CurrencyConverter, RateNotFoundError
-from decimal import Decimal, Context
-import db_connections
-import logging
+# TODO: update to local database
+
 import decimal
+import logging
+import os
+
+import pandas as pd
+from currency_converter import CurrencyConverter, RateNotFoundError
+
+import db_connections
 
 
 def get_kickstarter_stats(db):
@@ -198,9 +198,9 @@ def get_descriptive_stats(db, sql, outfile_name, variables):
         f.write(desc_df.to_latex())
     desc_df.to_csv('../{}_desc_stats.csv'.format(outfile_name))
 
-    print
+    print()
     desc_df.to_latex()
-    print
+    print()
     desc_df
 
 

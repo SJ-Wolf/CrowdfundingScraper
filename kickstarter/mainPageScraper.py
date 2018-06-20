@@ -1,103 +1,112 @@
-import sys
-
-if '../' not in sys.path:
-    sys.path.insert(0, '../')
-
 import json
-from lxml import html
-import lxml
-import db_connections
-import pickle
 import logging
-import splinter
+import pickle
+import sqlite3
 import time
 
+import lxml
+import requests
+from fake_useragent import UserAgent
+from lxml import html
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
-def get_main_page_html():
+
+def get_main_page_html(database_location):
     # import os
 
     # ff_profile = "/home/scrape/.mozilla/firefox/"
     # browser = splinter.Browser('firefox', profile=ff_profile)
-    if '/usr/local/bin' not in sys.path:
-        sys.path.insert(0, '/usr/local/bin')
-    browser = splinter.Browser('phantomjs')
+    # if '/usr/local/bin' not in sys.path:
+    #     sys.path.insert(0, '/usr/local/bin')
+    # browser = splinter.Browser('phantomjs')
+    driver = webdriver.Chrome()
+    opts = Options()
+    opts.add_argument(f"user-agent={UserAgent().chrome}")
+    # opts.add_argument('headless')
 
     for i in range(5):
         try:
-            browser.visit('https://www.kickstarter.com/discover/advanced?sort=newest')
+            driver.get('https://www.kickstarter.com/discover/advanced?sort=newest')
             break
         except:
             "Trying to load page again..."
 
     num_reloads = 0
-    while browser.title.find("We're sorry, but something went wrong") != -1:
+    while "We're sorry, but something went wrong" in driver.title:
         time.sleep(5)
-        browser.reload()
+        driver.refresh()
         num_reloads += 1
         logging.debug("Oh no!")
-        if num_reloads > 5: break
+        if num_reloads > 5:
+            break
 
     # to make sure we don't load too many urls
     logging.debug("Getting projects in the big database")
-    project_db = db_connections.get_fungrosencrantz_schema('kickstarter_new')  # TODO: change back to kickstarter after move
-    all_project_urls = set([x['url'] for x in project_db.query('select project.url_project as url from project order by launched_at desc limit 1000')])
-    logging.debug("Getting projects in the intermediate database")
-    intermediate_db = db_connections.get_intermediate_db()
-    # urls_to_scrape = set([x['url'] for x in intermediate_db.query('select url from urls_to_scrape')])
+    with sqlite3.connect(database_location) as db:
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute('select project.id as id from project order by launched_at desc limit 1000')
+        all_project_ids = set([x['id'] for x in cur.fetchall()])
+        all_project_ids = {62845062}
+        logging.debug("Getting projects in the intermediate database")
+        # urls_to_scrape = set([x['url'] for x in intermediate_db.query('select url from urls_to_scrape')])
 
-    logging.debug("Starting download....")
-    wait_time = 10
-    wait_step = 3
-    max_wait = 60
-    max_tries = 3
-    num_tries = 0
-    num_hrefs = 0
-    last_num_hrefs = 0
-    extra_pages = None
-    while True:
-        orig_html_length = len(browser.html)
-        button = browser.find_by_xpath('//div[@class="load_more"]/a[@role="button"]')[-1]
-        #        button = browser.find_by_xpath('//button[text()="Load more"]')
-        #        browser.find_elements_by_link_text("Load more").click()
-        button.click()
-        time.sleep(wait_step)
-
+        logging.debug("Starting download....")
+        wait_time = 10
+        wait_step = 3
+        max_wait = 60
+        max_tries = 3
+        num_tries = 0
+        num_projects = 0
+        last_num_hrefs = 0
+        extra_pages = None
         while True:
-            project_hrefs = browser.find_by_xpath('//h6[@class="project-title"]/a')
-            num_hrefs = len(project_hrefs)
-            if num_hrefs != last_num_hrefs:
-                break
-            logging.debug("Waiting...")
+            # orig_html_length = len(browser.html)
+            # driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+            button = driver.find_elements_by_xpath('//div[contains(@class, "load_more")]/a[@role="button"]')[-1]
+            #        button = browser.find_by_xpath('//button[text()="Load more"]')
+            #        browser.find_elements_by_link_text("Load more").click()
+            button.click()
             time.sleep(wait_step)
-            wait_time += wait_step
-            if wait_time >= max_wait: break
-        if wait_time >= max_wait:
-            num_tries += 1
-            if num_tries >= max_tries:
-                break
-        else:
-            num_tries = 0
-            last_num_hrefs = num_hrefs
-        # Tony added next wo lines
-        #       if num_hrefs > 5:
-        #           print "{0} projects loaded".format(num_hrefs)
-        #           break
-        logging.debug("{0} projects loaded again".format(num_hrefs))
-        last_href = project_hrefs[-1]['href']
-        logging.debug("last_href = {}".format(last_href))
-        last_href = last_href.replace("?ref=newest", "")
-        logging.debug("2 last_href = {}".format(last_href))
-        if last_href in all_project_urls:  # or last_href in urls_to_scrape:
-            if extra_pages is None:
-                extra_pages = 3
-            else:
-                extra_pages += -1
-            if extra_pages == 0:
-                break
 
-    page_source = browser.html
-    browser.quit()
-    return page_source
+            while True:
+                project_data_elems = driver.find_elements_by_xpath('//div[@data-project]')
+                num_projects = len(project_data_elems)
+                if num_projects != last_num_hrefs:
+                    break
+                logging.debug("Waiting...")
+                time.sleep(wait_step)
+                wait_time += wait_step
+                if wait_time >= max_wait: break
+            if wait_time >= max_wait:
+                num_tries += 1
+                if num_tries >= max_tries:
+                    break
+            else:
+                num_tries = 0
+                last_num_hrefs = num_projects
+            # Tony added next wo lines
+            #       if num_hrefs > 5:
+            #           print "{0} projects loaded".format(num_hrefs)
+            #           break
+            logging.debug("{0} projects loaded again".format(num_projects))
+            last_project_data = json.loads(project_data_elems[-1].get_attribute('data-project'))
+            last_project_id = last_project_data['id']
+            logging.debug("last project id = {}".format(last_project_id))
+            # last_project_id = last_project_id.replace("?ref=newest", "")
+            # logging.debug("2 last_href = {}".format(last_project_id))
+            if last_project_id in all_project_ids:  # or last_href in urls_to_scrape:
+                if extra_pages is None:
+                    extra_pages = 3
+                else:
+                    extra_pages += -1
+                if extra_pages == 0:
+                    break
+
+        page_source = driver.page_source
+        driver.quit()
+        return page_source
 
 
 def get_project_urls_from_main_page_html(page_source):
@@ -112,54 +121,27 @@ def get_project_urls_from_main_page_html(page_source):
     return urls
 
 
-def upload_urls_to_intermediate_database(urls):
-    logging.debug("In upload_urls_to_intermediate_database")
-    intermediate_db = db_connections.get_intermediate_db()
-    intermediate_db.begin()
-    for url in urls:
-        intermediate_db['urls_to_scrape'].upsert({'url': url}, ['url'], ensure=False)
-    intermediate_db.commit()
-    logging.debug("Bottom of  upload_urls_to_intermediate_database")
-
-
-def scrape_location(page_source):
-    tree = lxml.html.fromstring(page_source)
-    locations = dict()
-    location_sections = tree.xpath('//div[@class="project-location"]/a')
-
-    # this comes from the website
-    LOCATION_KEYS = ['name', 'short_name', 'country', 'id', 'is_root',
-                     'state', 'urls', 'type', 'displayable_name', 'slug']
-    for l_section in location_sections:
-        location = json.loads(s=l_section.attrib['data-location'])
-        if location.keys() != LOCATION_KEYS:
-            logging.debug(location.keys())
-            raise Exception("Bad location")
-        # location['status'] = location['state']
-        # del location['state']
-        del location['urls']
-        name = location['displayable_name'].strip()
-        locations[name] = location
-    db = db_connections.get_fungrosencrantz_schema(schema='kickstarter', traditional=True)
-    db_connections.uploadOutputFile(data=locations.values(), db=db, table='location', strict=True)
-
-
-def add_main_page_projects_to_intermediate_database():
-    logging.debug("Getting html from main page")
-    page_source = get_main_page_html()
-    with open('main_page_source.pickle', 'wb') as f:
-        pickle.dump(page_source, f)
-    # with open('main_page_source.pickle') as f:
-    #    page_source = pickle.load(f)
-    logging.debug("Scraping for locations")
-    scrape_location(page_source)
-    logging.debug("Scraping for urls")
-    urls = get_project_urls_from_main_page_html(page_source)
-    logging.debug("Before upload_urls_to_intermediate_database")
-    upload_urls_to_intermediate_database(urls)
-    logging.debug("After upload_urls_to_intermediate_database")
-
-
 if __name__ == "__main__":
-    # get_main_page_html()
-    add_main_page_projects_to_intermediate_database()
+    max_last_page = 2
+    num_extra_pages = 3
+
+    with sqlite3.connect('kickstarter.db') as db:
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute('select project.id as id from project order by launched_at desc limit 1000')
+        all_project_ids = set([x['id'] for x in cur.fetchall()])
+    project_data = []
+    for page_num in range(1, max_last_page + 1):
+        r = requests.get(f'https://www.kickstarter.com/discover/advanced?sort=newest&page={page_num}')
+        tree = html.fromstring(r.content)
+        project_data_elems = tree.xpath('//div[@data-project]')
+        project_data += [json.loads(x.attrib['data-project']) for x in project_data_elems]
+        last_project_id = project_data[-1]['id']
+        if last_project_id in all_project_ids:
+            num_extra_pages -= 1
+        if num_extra_pages < 0:
+            break
+
+    with open('main_page_raw_project_data.pickle', 'wb') as f:
+        pickle.dump(project_data, f)
+    # add_main_page_projects_to_intermediate_database()

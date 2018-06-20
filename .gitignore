@@ -1,16 +1,21 @@
 .idea/
 __pycache__/
 lib/*
+html/
+webrobots_downloads/
 .ipynb_checkpoints/
 
 *.pyc
 *.json
+!proxy_servers.json
 *.db
+!empty_*.db
 *.xlsx
 *.pickle
 *.html
 *.zip
 *.docx
 *.log
+*.tsv
 *.txt
 !requirements.txt
