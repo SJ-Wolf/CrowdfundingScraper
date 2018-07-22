@@ -3,7 +3,6 @@ import sqlite3
 import subprocess
 import time
 import zipfile
-from contextlib import contextmanager
 from multiprocessing import Process, Lock, JoinableQueue
 
 import pandas as pd
@@ -12,6 +11,7 @@ from fake_useragent import UserAgent
 from lxml import html
 
 from useful_functions import ensure_directory
+from utils.file_utils import enter_folder
 from utils.sqlite_utils import get_tmp_table_name
 
 
@@ -43,16 +43,6 @@ def get_urls(urls, per_second=3.0, overwrite=False, max_num_proxies=10, refresh_
                 for r in results:
                     yield r[1]
         cur.execute('drop table if exists `{tmp_table_name}`')
-
-
-@contextmanager
-def enter_folder(folder):
-    orig_dir = os.getcwd()
-    try:
-        os.chdir(folder)
-        yield
-    finally:
-        os.chdir(orig_dir)
 
 
 def wget_urls(urls, overwrite=True, folder='.'):

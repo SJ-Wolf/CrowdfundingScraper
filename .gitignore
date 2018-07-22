@@ -19,3 +19,4 @@ webrobots_downloads/
 *.tsv
 *.txt
 !requirements.txt
+kiva/snapshot/*

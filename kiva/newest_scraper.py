@@ -1,15 +1,19 @@
 #!/usr/bin/python
 
-# app ID = edu.berkeley.haas.crowdfunding.kiva
-from kiva import kiva_api
-import sys
-import db_connections
-import logging
-import useful_functions
 import json
+# import db_connections
+import logging
+import sqlite3
+import sys
 import traceback
 
-exit()
+import pandas as pd
+from joblib import Parallel, delayed
+
+import useful_functions
+# app ID = edu.berkeley.haas.crowdfunding.kiva
+from kiva import kiva_api
+from utils.sqlite_utils import insert_into_table
 
 
 def get_most_recent_loan_in_database(db, table='loan'):
@@ -19,6 +23,7 @@ def get_most_recent_loan_in_database(db, table='loan'):
     :param table: table to look at in the default schema of the database
     :return: id number of the most recent loan (by posted date)
     """
+    return "1094001"
     r = db.query('select id from {} order by posted_date desc limit 1'.format(table))
     return r.next()['id']
 
@@ -43,7 +48,7 @@ def get_loans_to_scrape(kiva_db, api, loan_table='loan', per_page=500, from_file
     return loans_to_scrape
 
 
-def get_lenders_to_scrape(kiva_db, lender_table='lender', loan_lender_table='loan_lender'):
+def get_lenders_to_scrape(lender_table='lender', loan_lender_table='loan_lender'):
     """
 
     :param kiva_db: database kiva information is stored
@@ -58,14 +63,16 @@ def get_lenders_to_scrape(kiva_db, lender_table='lender', loan_lender_table='loa
             {1}
                 LEFT JOIN
             {0} ON {0}.lender_id = {1}.lender_id
-        #where not ({1}.lender_id > 0)
+        --where not ({1}.lender_id > 0)
         group by {1}.lender_id
         having null_id is null;'''.format(lender_table, loan_lender_table)
-    r = kiva_db.query(q)
-    return [x['lender_id'] for x in r]
+    with sqlite3.connect('kiva.db') as db:
+        cur = db.cursor()
+        cur.execute(q)
+        return [x[0] for x in cur.fetchall()]
 
 
-def upload_missing_lenders(kiva_db, api):
+def upload_missing_lenders_data(api):
     """
     Uploads any lenders that are missing from the database
 
@@ -73,14 +80,27 @@ def upload_missing_lenders(kiva_db, api):
     :param api: api to use (such as KivaAPI in kiva_api)
     :return: None
     """
-    lenders_to_scrape = get_lenders_to_scrape(kiva_db=kiva_db)
-    all_lender_data = []
-    for lender_ids_chunk in useful_functions.split_array_into_chunks(data=lenders_to_scrape, chunk_size=50):
-        all_lender_data += api.get_lender_data(lender_ids_chunk)['lender']
-    db_connections.uploadOutputFile(data=all_lender_data, db=kiva_db, table='lender', ensure=True)
+    lenders_to_scrape = get_lenders_to_scrape()
+    with Parallel(n_jobs=api.num_threads) as parallel:
+        for big_loan_chunk in useful_functions.split_array_into_chunks(lenders_to_scrape, 10000):
+            big_lender_chunk = []
+            for lender_chunk in parallel(
+                    delayed(api.get_lender_data)(loan_chunk) for loan_chunk in useful_functions.split_array_into_chunks(big_loan_chunk, 50)):
+                big_lender_chunk += lender_chunk['lender']
+            print('uploading big lender chunk')
+            with sqlite3.connect('kiva.db') as db:
+                df = pd.DataFrame(big_lender_chunk)
+                insert_into_table(df, 'lender', db, replace=True)
+
+    # all_lender_data = []
+    # for lender_ids_chunk in useful_functions.split_array_into_chunks(data=lenders_to_scrape, chunk_size=50):
+    #     all_lender_data += api.get_lender_data(lender_ids_chunk)['lender']
+    # df = pd.DataFrame(all_lender_data)
+    # with sqlite3.connect('kiva.db') as db:
+    #     insert_into_table(df, 'lender', db, replace=True)
 
 
-def upload_new_loans_and_loan_lenders(db, api, from_file=None, update=True):
+def get_new_loans_and_loan_lenders_data(api, stop_loan_id=84, from_file=None, update=True):
     """
     Uploads new loans and loan lenders to the database
 
@@ -90,23 +110,23 @@ def upload_new_loans_and_loan_lenders(db, api, from_file=None, update=True):
     :param update: whether to update database or insert missing data
     :return: None
     """
-    newest_loans_json = get_loans_to_scrape(api=api, kiva_db=db, per_page=100, from_file=from_file)
+    newest_loans_json = api.get_most_recent_loans(stop_loan_id=stop_loan_id, per_page=100)
 
     all_data = None
     for loan_data_chunk in useful_functions.split_array_into_chunks(newest_loans_json, 100):
         loan_data = api.get_detailed_loan_data(loan_data_chunk)
         loans_lenders_data = api.get_loans_lenders_data(loan_data_chunk)
-        total_data = dict(loan_data.items() + loans_lenders_data.items())
+        total_data = dict(**loan_data, **loans_lenders_data)
         if all_data is None:
             all_data = total_data
         else:
             for key in all_data:
                 all_data[key] += total_data[key]
-
+    return all_data
     db_connections.multi_table_upload(all_data, db=db, update=update, ensure=True, ordered_tables=['loan'])
 
 
-def update_current_projects(db, api):
+def upload_current_projects_updates(api):
     """
     Updates loans in the database that are still ongoing
 
@@ -114,56 +134,128 @@ def update_current_projects(db, api):
     :param api: api to use (such as KivaAPI in kiva_api)
     :return: None
     """
-    r = db.query("select * from loan where `status` in ('in_repayment', 'inactive', 'fundraising') and DATEDIFF(now(), scrape_time) >= 1")
-    loan_json = [x for x in r]
-    if len(loan_json) == 0:
-        return
-    all_data = None
-    for loan_chunk in useful_functions.split_array_into_chunks(loan_json, 100):
-        chunk_data = api.get_detailed_loan_data(loan_chunk)
-        if all_data is None:
-            all_data = dict()
-            for key in chunk_data.keys():
-                all_data[key] = []
-        for key in all_data.keys():
-            all_data[key] += chunk_data[key]
-    db_connections.multi_table_upload(data=all_data, db=db, update=True, chunk_size=10000, ensure=True, ordered_tables=['loan'])
+    with sqlite3.connect('kiva.db') as db:
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        r = cur.execute("""
+            select *
+            from loan
+            where `status` in ('in_repayment', 'inactive', 'fundraising')
+                  and julianday(current_timestamp) - julianday(scrape_time) > 0.5 -- at least half a day""")
+        loan_json = [x for x in r]
+        if len(loan_json) == 0:
+            return
+        all_data = None
+        for loan_chunk in useful_functions.split_array_into_chunks(loan_json, 100):
+            chunk_data = api.get_detailed_loan_data(loan_chunk)
+            if all_data is None:
+                all_data = dict()
+                for key in chunk_data.keys():
+                    all_data[key] = []
+            for key in all_data.keys():
+                all_data[key] += chunk_data[key]
+        for table_name in all_data:
+            df = pd.DataFrame(all_data[table_name])
+            insert_into_table(df, table_name, db, replace=True)
 
 
-def upload_snapshot(db):
-    q = """
-replace into funding_trend (    loan_id,
-    `status`,
-    funded_amount,
-    paid_amount,
-    delinquent,
-    lender_count,
-    scrape_time)
-SELECT
-    loan.id AS loan_id,
-    loan.`status`,
-    loan.funded_amount,
-    loan.paid_amount,
-    loan.delinquent,
-    loan.lender_count,
-    loan.scrape_time
-FROM
-    loan
-WHERE
-    loan.`status` IN ('in_repayment' , 'inactive', 'fundraising')
-    and scrape_time > (select max(scrape_time) from funding_trend)
-    ;
-    """
-    db.query(q)
+def upload_snapshot():
+    with sqlite3.connect('kiva.db') as db:
+        cur = db.cursor()
+        q = """
+    replace into funding_trend (    loan_id,
+        `status`,
+        funded_amount,
+        paid_amount,
+        delinquent,
+        lender_count,
+        scrape_time)
+    SELECT
+        loan.id AS loan_id,
+        loan.`status`,
+        loan.funded_amount,
+        loan.paid_amount,
+        loan.delinquent,
+        loan.lender_count,
+        loan.scrape_time
+    FROM
+        loan
+    WHERE
+        loan.`status` IN ('in_repayment' , 'inactive', 'fundraising')
+        and scrape_time > (select max(scrape_time) from funding_trend)
+        ;
+        """
+        cur.execute(q)
 
 
 def run():
-    db = db_connections.get_fungrosencrantz_schema('Kiva')
-    api = kiva_api.KivaAPI()
-    upload_new_loans_and_loan_lenders(db, api)
-    update_current_projects(db, api)
-    upload_missing_lenders(db, api)
-    upload_snapshot(db)
+    api = kiva_api.KivaAPI(num_threads=1, make_cached_requests=False)
+    upload_loan_details(api)
+    upload_current_projects_updates(api)
+    upload_missing_loan_lenders(api)
+    upload_missing_lenders_data(api)
+    upload_snapshot()
+
+
+def upload_loan_details(api):
+    with sqlite3.connect('kiva.db') as db:
+        cur = db.cursor()
+        cur.execute('select id from loan order by posted_date desc limit 100, 1')
+        r = cur.fetchall()
+        if len(r) == 0:
+            stop_loan_id = None
+        else:
+            stop_loan_id = r[0][0]
+
+    newest_loans_json = api.get_most_recent_loans(stop_loan_id=stop_loan_id, per_page=100)
+    logging.debug("Starting parallel download")
+    # with Parallel(n_jobs=6) as parallel:
+    #     for big_loan_chunk in useful_functions.split_array_into_chunks(newest_loans_json, 10000):
+    #         parallel(delayed(api.get_detailed_loan_data)(loan_chunk) for loan_chunk in useful_functions.split_array_into_chunks(big_loan_chunk, 100))
+    for big_loan_chunk in useful_functions.split_array_into_chunks(newest_loans_json, 10000):
+        all_data = None
+        for loan_data_chunk in useful_functions.split_array_into_chunks(big_loan_chunk, 100):
+            print('done chunk...')
+            loan_data = api.get_detailed_loan_data(loan_data_chunk)
+            # loans_lenders_data = api.get_loans_lenders_data(loan_data_chunk)
+            # total_data = dict(**loan_data, **loans_lenders_data)
+            total_data = loan_data
+            if all_data is None:
+                all_data = total_data
+            else:
+                for key in all_data:
+                    all_data[key] += total_data[key]
+        with sqlite3.connect('kiva.db') as db:
+            print('done BIG chunk...')
+            db.executescript("""
+                PRAGMA page_size = 4096;
+                PRAGMA cache_size = 2652524;
+                PRAGMA temp_store = MEMORY
+                """)
+            for table_name in all_data:
+                df = pd.DataFrame(all_data[table_name])
+                insert_into_table(df, table_name, db, replace=True)
+
+
+def upload_missing_loan_lenders(api):
+    with sqlite3.connect('kiva.db') as db:
+        cur = db.cursor()
+        cur.execute('''
+            select id
+            from loan
+            where lender_count > 0 
+            and not exists(select 1
+                             from loan_lender
+                             where loan_lender.loan_id = loan.id)''')
+        missing_loan_ids = [x[0] for x in cur.fetchall()]
+        for loan_id_chunk in useful_functions.split_array_into_chunks(missing_loan_ids, chunk_size=1000):
+            loan_lenders_data = []
+            for loan_id in loan_id_chunk:
+                lender_ids = api.get_loans_lenders(loan_id)
+                for lender_id in lender_ids:
+                    loan_lenders_data.append((loan_id, lender_id))
+            cur.executemany('insert or ignore into loan_lender values (?, ?)', loan_lenders_data)
+            db.commit()
 
 
 if __name__ == '__main__':
@@ -172,6 +264,12 @@ if __name__ == '__main__':
     logging.debug("Starting {}.".format(sys.argv[0]))
     try:
         run()
+        # with sqlite3.connect('kiva.db') as db:
+        #     df = pd.read_csv('snapshot/loans_lenders_split.csv')
+        #     df.columns = ['loan_id', 'lender_id']
+        #     df.sort_values(by=['loan_id', 'lender_id'], inplace=True)
+        #     df.drop_duplicates(inplace=True)
+        #     df.to_sql('loan_lender', db, if_exists='append', index=False)
     except Exception:
         logging.error(traceback.format_exc())
         logging.info('A fatal error has occurred.')

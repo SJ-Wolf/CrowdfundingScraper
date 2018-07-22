@@ -24,9 +24,15 @@ def combine_list_of_dicts_on_column(primary_data, secondary_data, key):
     for primary_row in primary_data:
         for secondary_row in secondary_data:
             if primary_row[key] == secondary_row[key]:
-                combination_data.append(dict(secondary_row.items() + primary_row.items()))
+                combination_data.append({**secondary_row, **primary_row})
                 break
     return combination_data
+    # df1 = pd.DataFrame.from_records(primary_data, index=[key])
+    # df2 = pd.DataFrame.from_records(secondary_data, index=[key])
+    # df = df1.join(df2, how='inner', rsuffix='!!!!!')
+    # df.drop([x for x in df.columns if x.endswith('!!!!!')], axis=1, inplace=True)
+    # df[key] = df.index
+    # return df.to_dict(orient='records')
 
 
 def split_array_into_chunks(data, chunk_size=50):

@@ -1,5 +1,6 @@
 import uuid
-from contextlib import contextmanager
+
+from utils.file_utils import contextmanager
 
 
 def get_tmp_table_name():
@@ -18,6 +19,8 @@ def tmp_table(df, conn):
 
 
 def insert_into_table(df, table_name, conn, replace=False):
+    if len(df) == 0:
+        return
     cur = conn.cursor()
     tmp_table_name = '__tmp_' + table_name + '_' + str(uuid.uuid4())
     cur.execute(f'create temporary table "{tmp_table_name}" as select * from "{table_name}" where 0;')

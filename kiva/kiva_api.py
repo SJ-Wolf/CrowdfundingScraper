@@ -1,24 +1,55 @@
+import datetime
+import json
+import logging
+import pickle
+import sqlite3
 import sys
 # if '../' not in sys.path:
 #     sys.path.insert(0, '../')
 import time
+import traceback
+
 import requests
-import logging
-import json
+
 import useful_functions
 from . import kiva_json_analyzer
-import datetime
-import traceback
+
+
+def setup():
+    with sqlite3.connect('cached_requests.db') as db:
+        cur = db.cursor()
+        cur.execute('create table if not exists request (params text primary key, request blob)')
+
+
+setup()
 
 
 class KivaAPI:
-    def __init__(self, api_id='edu.berkeley.haas.crowdfunding.kiva'):
+    def __init__(self, api_id='edu.berkeley.haas.crowdfunding.kiva', num_threads=1, make_cached_requests=True):
         self._app_id = api_id
         self._first_api_request_time = None
         self._first_specific_api_request_time = None
         self._x_ratelimit_reset_time = 60
+        self.num_threads = num_threads
+        self._make_cached_requests = make_cached_requests
 
     def make_api_request(self, *args, **kwargs):
+        if not self._make_cached_requests:
+            return self.make_uncached_api_request(*args, **kwargs)
+
+        with sqlite3.connect('cached_requests.db', timeout=30) as db:
+            cur = db.cursor()
+            params_text = json.dumps(args) + json.dumps(kwargs)
+            cur.execute('select * from request where params = (?)', [params_text])
+            results = cur.fetchall()
+            if len(results) > 0:
+                r = pickle.loads(results[0][1])
+            else:
+                r = self.make_uncached_api_request(*args, **kwargs)
+                cur.execute('insert into request values (?, ?)', (params_text, pickle.dumps(r)))
+        return r
+
+    def make_uncached_api_request(self, *args, **kwargs):
         """
         Makes a request to the Kiva API, trying to take into account their limits on the number of requests that can be
         made per minute.
@@ -80,8 +111,8 @@ class KivaAPI:
                 'Requests remaining:  overall={}, specific={}'.format(overall_remaining, specific_remaining))
 
             # if we've hit either the general or specific limit, wait an appropriate amount of time
-            if overall_remaining <= 1 or (specific_remaining is not None and int(specific_remaining) <= 1):
-                if specific_remaining is not None and int(specific_remaining) <= 1:
+            if overall_remaining <= self.num_threads or (specific_remaining is not None and int(specific_remaining) <= self.num_threads):
+                if specific_remaining is not None and int(specific_remaining) <= self.num_threads:
                     wait_time = self._x_ratelimit_reset_time
                 else:
                     wait_time = self._first_api_request_time + self._x_ratelimit_reset_time - time.time() + 1
@@ -103,6 +134,8 @@ class KivaAPI:
         :param per_page: How many loans should be downloaded per request
         :return: A list of dictionaries, each dictionary describing a loan
         """
+        if stop_loan_id is None:
+            stop_loan_id = 84
         page = 1
         r = self.make_api_request(url='https://api.kivaws.org/v1/loans/search.json',
                                   params=dict(page=page, per_page=per_page, ids_only='true' if ids_only else 'false'))

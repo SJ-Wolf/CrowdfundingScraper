@@ -230,13 +230,6 @@ def create_text_table_for_data(data, cur, table):
     cur.execute(q)
 
 
-def get_files_in_directory(directory='.'):
-    for dirpath, dirnames, filenames in os.walk(directory):
-        for fname in filenames:
-            full_filename = os.path.join(dirpath, fname)
-            yield full_filename
-
-
 def print_warnings(cur):
     cur.execute('show warnings;')
     print(cur.fetchall())
