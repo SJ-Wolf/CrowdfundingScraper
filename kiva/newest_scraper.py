@@ -188,7 +188,7 @@ def upload_snapshot():
         cur.execute(q)
 
 
-def run():
+def update():
     api = kiva_api.KivaAPI(num_threads=1, make_cached_requests=False)
     upload_loan_details(api)
     upload_current_projects_updates(api)
@@ -263,7 +263,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, filename=log_file)
     logging.debug("Starting {}.".format(sys.argv[0]))
     try:
-        run()
+        update()
         # with sqlite3.connect('kiva.db') as db:
         #     df = pd.read_csv('snapshot/loans_lenders_split.csv')
         #     df.columns = ['loan_id', 'lender_id']

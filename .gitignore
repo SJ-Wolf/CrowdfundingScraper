@@ -20,3 +20,5 @@ webrobots_downloads/
 *.txt
 !requirements.txt
 kiva/snapshot/*
+lib/
+

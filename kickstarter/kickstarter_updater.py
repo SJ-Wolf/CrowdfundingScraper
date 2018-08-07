@@ -14,6 +14,7 @@ import lxml.html
 # from datetime import datetime
 import pandas as pd
 import regex as re
+import dateparser
 import requests
 
 import utils.sqlite_utils
@@ -475,11 +476,14 @@ def get_short_project_data_from_main_page(stop_at_unix_timestamp, start_page=1,
         r = requests.get(build_front_page_request(page_num, sort_by=sort_by, category_id=category_id, goal_num=goal_num, raised_num=raised_num))
         tree = lxml.html.fromstring(r.content)
         project_data_elems = tree.xpath('//div[@data-project]')
-        if len(project_data_elems) == 0:
+        if len(project_data_elems) == 0 or tree.xpath('//b[contains(@class, "count")]/text()')[0].strip() == '0 projects':
             print('No projects!')
             break
         raw_project_data += [json.loads(x.attrib['data-project']) for x in project_data_elems]
-        last_project_created_at = raw_project_data[-1]['created_at']
+        if sort_by == 'newest':
+            last_project_created_at = raw_project_data[-1]['created_at']
+        else:
+            last_project_created_at = raw_project_data[-1]['deadline']
         if last_project_created_at < stop_at_unix_timestamp:
             break
     return raw_project_data
@@ -508,7 +512,11 @@ def parse_comment_tree(tree, projectid):
 
         comment['body'] = "\n".join(c_section.xpath('.//p/text()'))
         # comment['by_creator'] = (c_section.attrib['class'].find("creator") != -1)
-        comment['post_date'] = c_section.xpath('.//data[@itemprop="Comment[created_at]"]')[0].attrib['data-value'].split("T")[0].replace('"', '')
+        # comment['post_date'] = c_section.xpath('.//data[@itemprop="Comment[created_at]"]')[0].attrib['data-value'].split("T")[0].replace('"', '')
+        try:
+            comment['post_date'] = c_section.xpath('.//time')[0].attrib['datetime'].split('T')[0].replace('"', '')
+        except IndexError:
+            comment['post_date'] = dateparser.parse(c_section.xpath('.//span[contains(@class, "date")]/a/text()')[0]).strftime("%Y-%m-%d")
         badge_results = c_section.xpath('.//*[contains(@*, "-badge")]')
         if len(badge_results) > 0:
             badge_string = ' '.join([x[:-len('-badge')] for x in badge_results[0].attrib['class'].split(' ') if x.endswith('-badge')])
@@ -608,7 +616,7 @@ def get_short_creator_bios():
 
 
 def get_comments():
-    for i in range(10000):
+    for i in range(100000):
         with sqlite3.connect(DATABASE_LOCATION) as db:
             completed_projects = set()
             cur = db.cursor()
@@ -680,3 +688,44 @@ def get_comments():
                                  from "{tmp_table_name}" t
                                  where t.project_id = project.id);""")
             utils.sqlite_utils.delete_temporary_tables(cur)
+
+
+def update():
+    with sqlite3.connect(DATABASE_LOCATION) as db:
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute('select * from project order by created_at desc limit 1')
+        stop_at_end_date = int(cur.fetchall()[0]['created_at']) - 1 * 24 * 60 * 60  # add a buffer of 1 day
+        logging.debug(f'Stopping at timestamp {stop_at_end_date}')
+
+    # projects = get_short_project_data_from_main_page(
+    #     stop_at_unix_timestamp=stop_at_end_date, sort_by='end_date',
+    #     max_last_page=200, start_page=1)
+    # logging.debug('fetching urls...')
+    # urls = [x['urls']['web']['project'] for x in projects]
+    with sqlite3.connect('kickstarter.db') as db:
+        cur = db.cursor()
+        cur.execute('select id from category where parent_id is null')
+        categories = [x[0] for x in cur.fetchall()]
+        for category in categories:
+            for goal_num in range(5):
+                for raised_num in range(3):
+                    projects = get_short_project_data_from_main_page(
+                        stop_at_unix_timestamp=stop_at_end_date, goal_num=goal_num, raised_num=raised_num,
+                        category_id=category, sort_by='end_date',
+                        max_last_page=200, start_page=1)
+                    print(f'{len(projects)} projects')
+                    cur.executemany('insert or ignore into all_files values (?, ?)', ((x['id'], x['urls']['web']['project']) for x in projects))
+                    db.commit()
+    urls = get_new_projects()[1]
+    urls += get_live_projects()[1]
+    urls = list(set(urls))
+    logging.debug(f'downloading {len(urls)} urls...')
+
+    project_html_iterator = (get_raw_project_data_from_tree(lxml.html.fromstring(page_source))
+                             for page_source in get_urls(urls, per_second=10.0, overwrite=True, max_num_proxies=-1))
+    logging.debug('parsing')
+    parse_kickstarter_files(chunksize=1000, limit=None,
+                            raw_project_data_iterator=project_html_iterator)
+    logging.debug('downloading comments')
+    get_comments()

@@ -1,33 +1,63 @@
 import time
+from kiva import newest_scraper
+import sys
+import logging
+import useful_functions
+import traceback
+from utils.download_utils import get_url, get_latest_free_proxy_list, download_urls_through_proxies, get_proxy_server_session
+import sqlite3
+from kickstarter import kickstarter_updater
+import lxml.html
 
-from utils.download_utils import get_url, get_latest_free_proxy_list, download_urls_through_proxies
+
+def try_run_function(f, failed_text):
+    try:
+        f()
+    except Exception:
+        logging.error(traceback.format_exc())
+        logging.info('A fatal error has occurred.')
+        try:
+            useful_functions.send_scott_a_text(message=failed_text)
+        except Exception:
+            logging.error('Message sending failed too!')
+            logging.error(traceback.format_exc())
+        raise
+
 
 if __name__ == '__main__':
     t0 = time.time()
+    log_file = '{}.log'.format(sys.argv[0][:-3])
+    logging.basicConfig(level=logging.DEBUG, filename=log_file)
+    logging.debug("Starting {}.".format(sys.argv[0]))
 
-    # with sqlite3.connect(DATABASE_LOCATION) as db:
+    # try_run_function(newest_scraper.update, 'Kiva update failed!')
+    try_run_function(kickstarter_updater.update, 'Kickstarter update failed!')
+
+    # with sqlite3.connect('kickstarter.db') as db:
     #     cur = db.cursor()
     #     cur.execute('select id from category where parent_id is null')
     #     categories = [x[0] for x in cur.fetchall()]
     #     for category in categories:
     #         for goal_num in range(5):
     #             for raised_num in range(3):
-    #                 projects = get_short_project_data_from_main_page(0, goal_num=goal_num, raised_num=raised_num,
-    #                                                                  category_id=category, sort_by='end_date',
-    #                                                                  max_last_page=100, start_page=100)
+    #                 projects = kickstarter_updater.get_short_project_data_from_main_page(
+    #                     0, goal_num=goal_num, raised_num=raised_num,
+    #                     category_id=category, sort_by='end_date',
+    #                     max_last_page=50, start_page=1)
     #                 print(f'{len(projects)} projects')
     #                 cur.executemany('insert or ignore into all_files values (?, ?)', ((x['id'], x['urls']['web']['project']) for x in projects))
     #                 db.commit()
     #                 print(category, goal_num, raised_num)
 
     # requests_session = get_proxy_server_session(1)
-    # project_ids, project_urls = get_live_projects()
+    # project_ids, project_urls = kickstarter_updater.get_live_projects()
     # print(len(project_ids))
-    # project_html_iterator = (get_raw_project_data_from_tree(lxml.html.fromstring(get_url(url, requests_session=requests_session, verbose=True, overwrite=True)))
-    #                          for url in project_urls)
+    # project_html_iterator = (
+    #     kickstarter_updater.get_raw_project_data_from_tree(lxml.html.fromstring(get_url(url, requests_session=requests_session, verbose=True, overwrite=True)))
+    #     for url in project_urls)
     # # wget_urls(project_urls, overwrite=True, folder='html')
-    # parse_kickstarter_files(chunksize=1000, limit=None,
-    #                         raw_project_data_iterator=project_html_iterator)
+    # kickstarter_updater.parse_kickstarter_files(chunksize=1000, limit=None,
+    #                                             raw_project_data_iterator=project_html_iterator)
 
     # with sqlite3.connect(DATABASE_LOCATION) as db:
     #     cur = db.cursor()
@@ -35,11 +65,11 @@ if __name__ == '__main__':
     # get_comments()
     # get_short_creator_bios
 
-    urls = get_url('http://169.229.7.239/list.txt', overwrite=False).split('\n')
-    proxies = get_latest_free_proxy_list(refresh=True)
-    download_urls_through_proxies(proxy_strings=proxies, urls=urls,
-                                  wait_time_between_requests=1,
-                                  wait_time_between_adding_urls=0.1, to_db=False, replace_existing=False, connections_per_server=5)
+    # urls = get_url('http://169.229.7.239/list.txt', overwrite=False).split('\n')
+    # proxies = get_latest_free_proxy_list(refresh=True)
+    # download_urls_through_proxies(proxy_strings=proxies, urls=urls,
+    #                               wait_time_between_requests=1,
+    #                               wait_time_between_adding_urls=0.1, to_db=False, replace_existing=False, connections_per_server=5)
 
     # import random
     # urls = get_url('http://169.229.7.239/list.txt', overwrite=False).split('\n')
@@ -114,4 +144,5 @@ if __name__ == '__main__':
     #           END          as num_words
     #         from comments;""", db).to_csv('comments.tsv', sep='\t', index=False)
 
+    logging.info('{} has completed.'.format(sys.argv[0]))
     print(time.time() - t0)
