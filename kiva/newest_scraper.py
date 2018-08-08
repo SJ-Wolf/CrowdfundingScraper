@@ -264,12 +264,6 @@ if __name__ == '__main__':
     logging.debug("Starting {}.".format(sys.argv[0]))
     try:
         update()
-        # with sqlite3.connect('kiva.db') as db:
-        #     df = pd.read_csv('snapshot/loans_lenders_split.csv')
-        #     df.columns = ['loan_id', 'lender_id']
-        #     df.sort_values(by=['loan_id', 'lender_id'], inplace=True)
-        #     df.drop_duplicates(inplace=True)
-        #     df.to_sql('loan_lender', db, if_exists='append', index=False)
     except Exception:
         logging.error(traceback.format_exc())
         logging.info('A fatal error has occurred.')
