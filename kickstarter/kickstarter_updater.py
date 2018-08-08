@@ -11,24 +11,16 @@ import urllib.parse
 
 import lxml.etree
 import lxml.html
-# from datetime import datetime
 import pandas as pd
 import regex as re
 import dateparser
 import requests
 
 import utils.sqlite_utils
-# import db_connections
-# import mysql.connector
-from kickstarter import mainPageScraper
 from kickstarter import webrobots_download
 from utils.download_utils import get_url, get_urls
 
-TEST_URL = 'https://www.kickstarter.com/projects/jpeteranetz/an-american-apocalypse-the-reckoning'  # TODO: bad
 DATABASE_LOCATION = 'kickstarter.db'
-
-# print(lxml.html.tostring(root.xpath('//div[contains(@class,"js-full-description")]')[0], encoding='unicode', method='text'))
-# items? livestreams? profile : feature_image_attributes?
 
 # http://stackoverflow.com/a/24519338
 ESCAPE_SEQUENCE_RE = re.compile(r'''
@@ -86,6 +78,14 @@ def get_project_data_from_file(file_name):
 
 
 def get_project_data(raw_project_data):
+    """
+    Structures raw data from Kickstarter
+
+    :param raw_project_data: project data straight from kickstarter
+    :return: project_data, category_data, creator_data, items, livestream_list, location_data, reward_data_list
+        \n\t_data means dictionary (ie one row of a table)
+        \n\t_list mean list of dictionaries (i.e. multiple rows of a table)
+    """
     project_data = dict()
 
     for key in ('blurb', 'comments_count', 'country', 'created_at', 'currency', 'currency_symbol',
@@ -100,12 +100,12 @@ def get_project_data(raw_project_data):
 
     category_data = raw_project_data.pop('category')
     creator_data = raw_project_data.pop('creator')
-    items = raw_project_data.pop('items')
-    for i in range(len(items)):
-        items[i]['project_id'] = project_data['id']
-    livestreams = raw_project_data.pop('livestreams') if 'livestreams' in raw_project_data else []
-    for i in range(len(livestreams)):
-        livestreams[i]['project_id'] = project_data['id']
+    item_list = raw_project_data.pop('items')
+    for i in range(len(item_list)):
+        item_list[i]['project_id'] = project_data['id']
+    livestream_list = raw_project_data.pop('livestreams') if 'livestreams' in raw_project_data else []
+    for i in range(len(livestream_list)):
+        livestream_list[i]['project_id'] = project_data['id']
     location_data = raw_project_data.get('location')
 
     reward_data_list = raw_project_data.pop('rewards')
@@ -147,52 +147,22 @@ def get_project_data(raw_project_data):
         'video') is not None else None
     project_data['video_status'] = raw_project_data['video']['status'] if raw_project_data.get(
         'video') is not None else None
-    # for key in project_data:
-    #    if key.endswith('_at') and project_data[key] is not None:
-    #        project_data[key] = datetime.fromtimestamp(project_data[key])
-    # project_data['deadline'] = datetime.fromtimestamp(project_data['deadline'])
     project_data['file_name'] = project_data['url_project'].replace('https://', '').replace('http://', '')
-    return project_data, category_data, creator_data, items, livestreams, location_data, reward_data_list
+    return project_data, category_data, creator_data, item_list, livestream_list, location_data, reward_data_list
 
 
-def insert_list(cur, table, data, insert_mode='insert'):
-    column_str = None
-    data_to_insert = []
-    data_keys = list(data[0].keys())  # order doesn't matter
-    for row in data:
-        tmp_column_str = ''
-        value_list = []
-        for i, key in enumerate(data_keys):
-            if i == 0:
-                tmp_column_str += '{}'.format(key)
-            else:
-                tmp_column_str += ', {}'.format(key)
-            value_list.append(row[key])
-        if column_str is None:
-            column_str = tmp_column_str
-        else:
-            assert column_str == tmp_column_str
-        data_to_insert.append(value_list)
-    cur.executemany('{} into {} ({}) values ({})'.format(
-        insert_mode,
-        table,
-        column_str,
-        '%s, ' * (len(data_to_insert[0]) - 1) + ' %s'
-    ), data_to_insert)
-
-
-def parse_kickstarter_file(url):
-    url = url.replace('https://', '').replace('http://', '')
-    with open(url, 'r', encoding='utf8') as f:
-        f_text = f.read()
-        return get_project_data(lxml.html.fromstring(f_text))
-
-
-def fast_upsert_many(conn, table, data):
+def fast_upsert_many(conn, table_name: str, data: list):
+    """
+    Upserts data into table
+    :param conn: database connection to pass to Pandas
+    :param table_name:
+    :param data: list of dictionaries
+    :return:
+    """
     if len(data) == 0:
         return
     df = pd.DataFrame(data)
-    utils.sqlite_utils.insert_into_table(df, table, conn, replace=True)
+    utils.sqlite_utils.insert_into_table(df, table_name, conn, replace=True)
 
 
 def flatten_data(data):
@@ -212,23 +182,6 @@ def flatten_reward_data(data):
         if 'rewards_items' in row.keys():
             flattened_rewards_items_data += flatten_data(row.pop('rewards_items'))
     return flattened_reward_data, flattened_rewards_items_data
-
-
-def create_text_table_for_data(data, cur, table):
-    all_keys = set()
-    for row in data:
-        all_keys = all_keys.union(set(row.keys()))
-    cur.execute('drop table if exists {};'.format(table))
-    if len(all_keys) == 0:
-        raise Exception('No keys to create table with.')
-    q = 'create table {} (\n'.format(table)
-    for i, key in enumerate(list(all_keys)):
-        if i == 0:
-            q += '\t`{}` TEXT\n'.format(key)
-        else:
-            q += '\t, `{}` TEXT\n'.format(key)
-    q += ');'
-    cur.execute(q)
 
 
 def print_warnings(cur):
@@ -262,14 +215,14 @@ def parse_kickstarter_files(raw_project_data_iterator, chunksize=100, limit=None
         # create_text_table_for_data(flattened_all_item_data, ks_cur, 'item')
         # create_text_table_for_data(flattened_all_location_data, ks_cur, 'location')
         # create_text_table_for_data(flattened_all_livestream_data, ks_cur, 'livestream')
-        fast_upsert_many(conn=db, table='reward', data=flattened_all_reward_data)
-        fast_upsert_many(conn=db, table='reward_item', data=flattened_all_rewards_items_dat)
-        fast_upsert_many(conn=db, table='category', data=flattened_all_category_data)
-        fast_upsert_many(conn=db, table='creator', data=flattened_all_creator_data)
-        fast_upsert_many(conn=db, table='item', data=flattened_all_item_data)
-        fast_upsert_many(conn=db, table='livestream', data=flattened_all_livestream_data)
-        fast_upsert_many(conn=db, table='location', data=flattened_all_location_data)
-        fast_upsert_many(conn=db, table='project', data=all_project_data)
+        fast_upsert_many(conn=db, table_name='reward', data=flattened_all_reward_data)
+        fast_upsert_many(conn=db, table_name='reward_item', data=flattened_all_rewards_items_dat)
+        fast_upsert_many(conn=db, table_name='category', data=flattened_all_category_data)
+        fast_upsert_many(conn=db, table_name='creator', data=flattened_all_creator_data)
+        fast_upsert_many(conn=db, table_name='item', data=flattened_all_item_data)
+        fast_upsert_many(conn=db, table_name='livestream', data=flattened_all_livestream_data)
+        fast_upsert_many(conn=db, table_name='location', data=flattened_all_location_data)
+        fast_upsert_many(conn=db, table_name='project', data=all_project_data)
 
     with sqlite3.connect(DATABASE_LOCATION) as db:
         cur = db.cursor()
@@ -362,28 +315,6 @@ def get_sorted_downloaded_project_paths(skip=None):
             yield f_name
 
 
-def upload_new_projects_list():
-    page_source = mainPageScraper.get_main_page_html(DATABASE_LOCATION)
-    with open('main_page_source.pickle', 'wb') as f:
-        pickle.dump(page_source, f)
-    # with open('main_page_source.pickle', 'rb') as f:
-    #     page_source = pickle.load(f)
-
-    tree = lxml.html.fromstring(page_source)
-    projects = []
-    project_card_elements = tree.xpath('//div[@class="row"]/li/div')
-    for card_element in project_card_elements:
-        project_id = int(card_element.attrib['data-project_pid'])
-        project_url = card_element.xpath('.//h6[@class="project-title"]/a')[0].attrib['href']
-        if project_url[:11] != 'https://www':
-            project_url = "https://www.kickstarter.com" + project_url
-        project_url = project_url.replace("?ref=newest", "")
-        projects.append((project_id, project_url))
-    with sqlite3.connect(DATABASE_LOCATION) as db:
-        cur = db.cursor()
-        cur.execute("insert or ignore into all_files values (%s, %s)", projects)
-
-
 def get_live_projects(limit=None):
     q = '''
         SELECT id, min(url) as url
@@ -430,22 +361,6 @@ def get_new_projects(limit=None):
     return [x[0] for x in new_and_live_projects], [x[1] for x in new_and_live_projects]
 
 
-# def update():
-#     upload_webrobots_downloads()
-#     upload_new_projects_list()
-#     project_ids, project_urls, project_paths = get_new_and_live_projects()
-#
-#     orig_dir = os.getcwd()
-#     os.chdir('/mnt/data/scrape')
-#     # for path in project_paths:
-#     #     if os.path.exists(path):
-#     #         os.remove(path)
-#     wget_urls(project_urls)
-#     os.chdir(orig_dir)
-#
-#     parse_kickstarter_files(files=project_paths, chunksize=1000, limit=None, directory='/mnt/data/scrape')
-
-
 def add_webrobots_csvs_to_all_files():
     with open('tmp.pickle', 'rb') as f:
         projects = webrobots_download.projects_from_webrobots('webrobots_downloads')
@@ -481,10 +396,10 @@ def get_short_project_data_from_main_page(stop_at_unix_timestamp, start_page=1,
             break
         raw_project_data += [json.loads(x.attrib['data-project']) for x in project_data_elems]
         if sort_by == 'newest':
-            last_project_created_at = raw_project_data[-1]['created_at']
+            last_project_launched_at = raw_project_data[-1]['launched_at']
         else:
-            last_project_created_at = raw_project_data[-1]['deadline']
-        if last_project_created_at < stop_at_unix_timestamp:
+            last_project_launched_at = raw_project_data[-1]['deadline']
+        if last_project_launched_at < stop_at_unix_timestamp:
             break
     return raw_project_data
 
@@ -511,8 +426,6 @@ def parse_comment_tree(tree, projectid):
             comment['user_name'] = None
 
         comment['body'] = "\n".join(c_section.xpath('.//p/text()'))
-        # comment['by_creator'] = (c_section.attrib['class'].find("creator") != -1)
-        # comment['post_date'] = c_section.xpath('.//data[@itemprop="Comment[created_at]"]')[0].attrib['data-value'].split("T")[0].replace('"', '')
         try:
             comment['post_date'] = c_section.xpath('.//time')[0].attrib['datetime'].split('T')[0].replace('"', '')
         except IndexError:
@@ -620,25 +533,6 @@ def get_comments():
         with sqlite3.connect(DATABASE_LOCATION) as db:
             completed_projects = set()
             cur = db.cursor()
-            # cur.execute("""
-            #     select
-            #       projectid,
-            #       url_project,
-            #       max(comments.id)
-            #     from project
-            #       join comments on comments.projectid = project.id
-            #     group by projectid
-            #     having deleted_comments is null or comments_count - deleted_comments != count(*)
-            #     union all
-            #     select
-            #       project.id,
-            #       url_project,
-            #       0
-            #     from project
-            #       left join comments on project.id = comments.projectid
-            #     where projectid is null and comments_count - IFNULL(project.deleted_comments, 0) > 0
-            #     limit 30000;
-            #     """)
             cur.execute("""
                 select
                   id,
@@ -687,7 +581,7 @@ def get_comments():
                     where exists(select 1
                                  from "{tmp_table_name}" t
                                  where t.project_id = project.id);""")
-            utils.sqlite_utils.delete_temporary_tables(cur)
+    utils.sqlite_utils.delete_temporary_tables(DATABASE_LOCATION)
 
 
 def update():
@@ -695,14 +589,44 @@ def update():
         db.row_factory = sqlite3.Row
         cur = db.cursor()
         cur.execute('select * from project order by created_at desc limit 1')
-        stop_at_end_date = int(cur.fetchall()[0]['created_at']) - 1 * 24 * 60 * 60  # add a buffer of 1 day
+        stop_at_end_date = int(cur.fetchall()[0]['launched_at']) - 1 * 24 * 60 * 60  # add a buffer of 1 day
         logging.debug(f'Stopping at timestamp {stop_at_end_date}')
 
-    # projects = get_short_project_data_from_main_page(
-    #     stop_at_unix_timestamp=stop_at_end_date, sort_by='end_date',
-    #     max_last_page=200, start_page=1)
-    # logging.debug('fetching urls...')
-    # urls = [x['urls']['web']['project'] for x in projects]
+    with sqlite3.connect('kickstarter.db') as db:
+        cur = db.cursor()
+        projects = get_short_project_data_from_main_page(
+            stop_at_unix_timestamp=stop_at_end_date, max_last_page=200, start_page=1)
+        print(f'{len(projects)} projects')
+        cur.executemany('insert or ignore into all_files values (?, ?)', ((x['id'], x['urls']['web']['project']) for x in projects))
+        db.commit()
+
+    urls = get_new_projects()[1]
+    urls += get_live_projects()[1]
+    urls = list(set(urls))
+    print(urls)
+    logging.debug(f'downloading {len(urls)} urls...')
+    if len(urls) > 1000:
+        num_proxies = -1
+        per_second = 10
+    else:
+        num_proxies = 50
+        per_second = 5
+
+    project_html_iterator = (get_raw_project_data_from_tree(lxml.html.fromstring(page_source))
+                             for page_source in get_urls(urls, per_second=per_second, overwrite=True, max_num_proxies=num_proxies))
+    logging.debug('parsing')
+    parse_kickstarter_files(chunksize=1000, limit=None,
+                            raw_project_data_iterator=project_html_iterator)
+    logging.debug('downloading comments')
+    get_comments()
+    utils.sqlite_utils.delete_temporary_tables(DATABASE_LOCATION)
+
+
+def add_old_projects_to_all_files():
+    """
+    Adds project ids/urls from long ago to all_files. Run this before update() to add the new projects to the database.
+    :return:
+    """
     with sqlite3.connect('kickstarter.db') as db:
         cur = db.cursor()
         cur.execute('select id from category where parent_id is null')
@@ -711,21 +635,10 @@ def update():
             for goal_num in range(5):
                 for raised_num in range(3):
                     projects = get_short_project_data_from_main_page(
-                        stop_at_unix_timestamp=stop_at_end_date, goal_num=goal_num, raised_num=raised_num,
+                        0, goal_num=goal_num, raised_num=raised_num,
                         category_id=category, sort_by='end_date',
                         max_last_page=200, start_page=1)
                     print(f'{len(projects)} projects')
                     cur.executemany('insert or ignore into all_files values (?, ?)', ((x['id'], x['urls']['web']['project']) for x in projects))
                     db.commit()
-    urls = get_new_projects()[1]
-    urls += get_live_projects()[1]
-    urls = list(set(urls))
-    logging.debug(f'downloading {len(urls)} urls...')
-
-    project_html_iterator = (get_raw_project_data_from_tree(lxml.html.fromstring(page_source))
-                             for page_source in get_urls(urls, per_second=10.0, overwrite=True, max_num_proxies=-1))
-    logging.debug('parsing')
-    parse_kickstarter_files(chunksize=1000, limit=None,
-                            raw_project_data_iterator=project_html_iterator)
-    logging.debug('downloading comments')
-    get_comments()
+                    print(category, goal_num, raised_num)

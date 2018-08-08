@@ -1,3 +1,4 @@
+import sqlite3
 import uuid
 
 from utils.file_utils import contextmanager
@@ -28,12 +29,25 @@ def insert_into_table(df, table_name, conn, replace=False):
     cur.execute(('replace' if replace else 'insert or ignore') + f' into "{table_name}" select * from "{tmp_table_name}";')
 
 
-def delete_temporary_tables(cur):
-    cur.execute(r"""
-        select tbl_name
-        from sqlite_master
-        where type = 'table' and tbl_name like '\_\_tmp\_%' escape '\'
-                                                """)
-    table_names = [x[0] for x in cur.fetchall()]
-    for table in table_names:
-        cur.execute(f'drop table if exists `{table}`')
+def delete_temporary_tables(database_location: str):
+    with sqlite3.connect(database_location) as db:
+        cur = db.cursor()
+        cur.execute(r"""
+            select tbl_name
+            from sqlite_master
+            where type = 'table' and tbl_name like '\_\_tmp\_%' escape '\'
+                                                    """)
+        table_names = [x[0] for x in cur.fetchall()]
+        for table in table_names:
+            cur.execute(f'drop table if exists `{table}`')
+
+
+def get_create_table_statements(database_location: str):
+    with sqlite3.connect(database_location) as db:
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute('select sql from sqlite_master where name not like "__tmp_%" and name not like "sqlite_autoindex_%" and type = "table"')
+        statements = [row['sql'] + ';' for row in cur.fetchall()]
+        cur.execute('select sql from sqlite_master where name not like "__tmp_%" and name not like "sqlite_autoindex_%" and type != "table"')
+        statements += [row['sql'] + ';' for row in cur.fetchall()]
+        return statements

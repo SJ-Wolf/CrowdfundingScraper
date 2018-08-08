@@ -132,17 +132,6 @@ def extract_zip_in_folder(folder='downloads', recursive=False):
                     subprocess.call(f'unzip "{f_name}"', shell=True)
 
 
-# def get_proxy_server_session(index=0):
-#     with open('lib/proxy_servers.json') as f:
-#         proxy_server = json.load(f)[index]
-#     proxies = {
-#         'http': proxy_server['curl']
-#     }
-#     s = requests.session()
-#     s.proxies = proxies
-#     r = s.get("http://whatismyipaddress.com")
-#     assert proxy_server['ip'] in r.text
-#     return s
 def get_proxy_server_session(proxy_str):
     proxies = {
         'http': proxy_str

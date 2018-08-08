@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import json
-# import db_connections
 import logging
 import sqlite3
 import sys
@@ -13,7 +12,7 @@ from joblib import Parallel, delayed
 import useful_functions
 # app ID = edu.berkeley.haas.crowdfunding.kiva
 from kiva import kiva_api
-from utils.sqlite_utils import insert_into_table
+from utils.sqlite_utils import insert_into_table, delete_temporary_tables
 
 
 def get_most_recent_loan_in_database(db, table='loan'):
@@ -195,6 +194,7 @@ def update():
     upload_missing_loan_lenders(api)
     upload_missing_lenders_data(api)
     upload_snapshot()
+    delete_temporary_tables('kiva.db')
 
 
 def upload_loan_details(api):

@@ -1,7 +1,6 @@
 import csv
 import json
 import os
-import sqlite3
 
 import lxml.html
 import requests
@@ -40,43 +39,6 @@ def get_all_webrobots_csv_urls():
             urls = [x.attrib['href'] for x in tree.xpath('//a') if x.text == 'CSV']
             f.writelines('\n'.join(urls))
             return urls
-
-
-def get_projects_in_kickstarter_db(ks_cur):
-    ks_cur.execute('select id, url from project;')
-    return ks_cur.fetchall()
-
-
-def run():
-    with open('../lib/fungrosencrantz_login', 'r') as f:
-        fung_login = json.load(f)
-    ks_conn = mysql.connector.connect(user=fung_login['username'], database='kickstarter',
-                                      password=fung_login['password'], host=fung_login['hostname'], port=fung_login['port'])
-    ks_cur = ks_conn.cursor()
-    ks_cur.execute("SET SESSION sql_mode = 'TRADITIONAL';")
-    int_conn = sqlite3.connect('html_database.db', )
-    int_cur = int_conn.cursor()
-
-    ks_projects = get_projects_in_kickstarter_db(ks_cur)
-    webrobots_projects = projects_from_webrobots()
-
-    int_cur.execute('''
-        DROP TABLE IF EXISTS tmp;
-        ''')
-    int_cur.execute('''
-        CREATE TABLE tmp (
-        id INT,
-        url TEXT);
-        ''')
-
-    int_cur.executemany('insert into tmp (id, url) values (?, ?)', ks_projects)
-    int_cur.executemany('insert into tmp (id, url) values (?, ?)', webrobots_projects)
-    int_cur.execute('insert or ignore into all_project_urls select id, url from tmp')
-    int_conn.commit()
-    ks_cur.close()
-    ks_conn.close()
-    int_cur.close()
-    int_conn.close()
 
 
 def download_webrobots_csvs():

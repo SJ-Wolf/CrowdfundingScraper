@@ -37,10 +37,9 @@ for node in nodevisitor.visit(js_tree):
             raise Exception('Existing value of {} for key {} does not equal new value of {}'.format(
                 fields[left_side_of_assignment], left_side_of_assignment, right_side_of_assignment))
         fields[left_side_of_assignment] = right_side_of_assignment
-return fields
+# return fields
 
-print
-fields
+print(fields)
 # fields = {getattr(node.left, 'value', ''): getattr(node.right, 'value', '') for node in nodevisitor.visit(tree) if isinstance(node, ast.Assign)}
 
 # print fields
