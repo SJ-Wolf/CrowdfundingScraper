@@ -1,10 +1,11 @@
 # CrowdfundingScraper
-Contains scripts to aid in downloading Kickstarter and Kiva data to a local database.
+Contains scripts to aid in downloading Kickstarter and Kiva data to local databases (kickstarter.db and kiva.db).
 
 # Updating the databases
 Simply run [main.py](main.py).
 
 # New setup
 1. Be sure to call [create_new_databases()](main.py).
-2. It is advisable to get as much as possible from webrobots.io.
-3. Call [add_old_projects_to_all_files()](kickstarter/kickstarter_updater.py) before calling [update()](kickstarter/kickstarter_updater.py) or running [main.py](main.py).
+2. It is advisable to get as many project ids/urls as possible from webrobots.io. [webrobots_download.py](kickstarter/webrobots_download.py) can help with this.
+3. Call [add_old_projects_to_all_files()](kickstarter/kickstarter_updater.py)
+4. Run [main.py](main.py).
