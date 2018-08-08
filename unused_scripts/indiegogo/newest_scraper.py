@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 import time
 import json
 import logging
-import useful_functions
+from utils import useful_functions
 import traceback
 
 

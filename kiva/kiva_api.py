@@ -4,14 +4,12 @@ import logging
 import pickle
 import sqlite3
 import sys
-# if '../' not in sys.path:
-#     sys.path.insert(0, '../')
 import time
 import traceback
 
 import requests
 
-import useful_functions
+from utils import useful_functions
 from . import kiva_json_analyzer
 
 
@@ -173,7 +171,7 @@ class KivaAPI:
         try:
             num_pages = response_json['paging']['pages']
         except:
-            with open('output.text', 'w') as f:
+            with open('kiva_error_output.txt', 'w') as f:
                 f.write(r.text)
             raise
         loans_lenders += response_json['lenders']

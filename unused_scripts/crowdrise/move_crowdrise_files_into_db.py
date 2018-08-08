@@ -2,12 +2,12 @@ import sys
 
 if '../' not in sys.path:
     sys.path.insert(0, '../')
-import db_connections
+from unused_scripts import db_connections
 import logging
 import traceback
 import time
 import os
-from useful_functions import split_array_into_chunks
+from utils.useful_functions import split_array_into_chunks
 
 
 def run():

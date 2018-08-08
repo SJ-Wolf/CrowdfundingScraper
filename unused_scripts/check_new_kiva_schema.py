@@ -2,7 +2,7 @@ import sys
 
 if '../' not in sys.path:
     sys.path.insert(0, '../')
-import db_connections
+from unused_scripts import db_connections
 
 db1 = db_connections.get_fungrosencrantz_schema('TestDBforScott')
 db2 = db_connections.get_fungrosencrantz_schema('Kiva')

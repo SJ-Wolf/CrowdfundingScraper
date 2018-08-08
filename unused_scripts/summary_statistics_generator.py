@@ -6,8 +6,7 @@ import sys
 if '../' not in sys.path:
     sys.path.insert(0, '../')
 import time
-import db_connections
-import os
+from unused_scripts import db_connections
 import tablib
 
 # set this to false if this script is one folder lower than the main folder (eg if it's in unused_scripts)

@@ -10,7 +10,7 @@ import requests
 from fake_useragent import UserAgent
 from lxml import html
 
-from useful_functions import ensure_directory
+from utils.useful_functions import ensure_directory
 from utils.file_utils import enter_folder
 from utils.sqlite_utils import get_tmp_table_name
 

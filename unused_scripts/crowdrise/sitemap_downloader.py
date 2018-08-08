@@ -3,20 +3,15 @@ import sys
 if '../' not in sys.path:
     sys.path.insert(0, '../')
 import spur
-import datetime
-import requests
 import xml.etree.cElementTree
 import subprocess
 import logging
 import traceback
 import time
-import useful_functions
-import os
+from utils import useful_functions
 import re
-import db_connections
-import dateutil.parser
+from unused_scripts import db_connections
 import psycopg2
-import csv
 import json
 import lxml.html
 from crowdrise_scraper import CrowdriseScraper

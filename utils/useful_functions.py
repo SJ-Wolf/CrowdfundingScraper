@@ -357,7 +357,7 @@ def get_descriptive_stats_latex(db, outfile_name, variables=[], table='', curren
 
 
 if __name__ == '__main__':
-    import db_connections
+    from unused_scripts import db_connections
     import logging
 
     logging.basicConfig(level=logging.DEBUG)

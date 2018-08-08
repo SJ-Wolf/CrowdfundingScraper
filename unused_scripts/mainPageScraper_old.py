@@ -1,10 +1,9 @@
 import json
-import pprint
 from lxml import html
 import lxml
 import requests
 import codecs
-import db_connections
+from unused_scripts import db_connections
 import sys
 
 

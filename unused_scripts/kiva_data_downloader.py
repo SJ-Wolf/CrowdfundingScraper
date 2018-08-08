@@ -12,7 +12,7 @@ if '../' not in sys.path:
     sys.path.insert(0, '../')
 import pandas as pd
 import csv
-import db_connections
+from unused_scripts import db_connections
 
 file_name = '/tmp/kiva_lender_us_3'
 
@@ -105,7 +105,7 @@ def split_output_files(file_name):
 
 
 def query_to_excel(query, chunk_size=10, outfile='output.xlsx', schema='Kiva'):
-    from useful_functions import split_array_into_chunks
+    from utils.useful_functions import split_array_into_chunks
     writer = pd.ExcelWriter(outfile, engine='xlsxwriter', options={'strings_to_urls': False})
     db = db_connections.get_fungrosencrantz_schema(schema)
     df = pd.read_sql(query, con=db.executable)

@@ -3,14 +3,14 @@ import sys
 if '../' not in sys.path:
     sys.path.insert(0, '../')
 
-import db_connections
+from unused_scripts import db_connections
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import matplotlib
 import matplotlib.dates as mdates
 import datetime
-import useful_functions
+from utils import useful_functions
 import matplotlib.ticker as mticker
 from matplotlib.colors import LogNorm
 

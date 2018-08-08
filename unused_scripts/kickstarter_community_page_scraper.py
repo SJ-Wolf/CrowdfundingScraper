@@ -6,10 +6,9 @@ import logging
 import time
 import traceback
 import os
-import dataset
 import lxml.html
 import cPickle as pickle
-import db_connections
+from unused_scripts import db_connections
 
 
 def scrape_file(file_path):

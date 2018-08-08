@@ -6,10 +6,10 @@ import requests
 import os
 import time
 import logging
-import db_connections
+from unused_scripts import db_connections
 import traceback
 from lxml import etree
-from io import StringIO, BytesIO
+from io import StringIO
 # from slimit import ast
 # from slimit.parser import Parser
 # from slimit.visitors import nodevisitor
@@ -21,7 +21,7 @@ import xml.etree.ElementTree
 # import pandas as pd
 # import dateutil.parser
 # import pytz
-from useful_functions import remove_chars_from_string, split_array_into_chunks, split_list, get_file_names_from_url_file
+from utils.useful_functions import remove_chars_from_string, split_array_into_chunks, split_list, get_file_names_from_url_file
 # import sitemap_downloader
 import timestring
 import datetime

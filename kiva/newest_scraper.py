@@ -9,7 +9,7 @@ import traceback
 import pandas as pd
 from joblib import Parallel, delayed
 
-import useful_functions
+from utils import useful_functions
 # app ID = edu.berkeley.haas.crowdfunding.kiva
 from kiva import kiva_api
 from utils.sqlite_utils import insert_into_table, delete_temporary_tables

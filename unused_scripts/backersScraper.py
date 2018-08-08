@@ -5,11 +5,10 @@ import tablib
 import json
 import time
 from asyncProjectScraper import openUrlFile
-import pprint
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 import os
 import requests
-import db_connections
+from unused_scripts import db_connections
 
 
 def downloadFile(url, folder=""):

@@ -2,7 +2,7 @@ import time
 from kiva import newest_scraper
 import sys
 import logging
-import useful_functions
+from utils import useful_functions
 import traceback
 from kickstarter import kickstarter_updater
 from utils.sqlite_utils import get_create_table_statements

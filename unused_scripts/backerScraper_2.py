@@ -5,7 +5,7 @@ import asyncProjectScraper
 import os
 import multiprocessing
 import requests
-import db_connections
+from unused_scripts import db_connections
 import random
 
 

@@ -1,8 +1,7 @@
 # this module takes all the urls in the project database and downloads their html into a local database
 # only useful if the project database has already been populated
 
-import db_connections
-import webpageDownloader
+from unused_scripts import webpageDownloader, db_connections
 import sys
 
 

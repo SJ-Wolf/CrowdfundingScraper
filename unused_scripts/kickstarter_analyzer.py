@@ -5,7 +5,7 @@ import sys
 if '../' not in sys.path:
     sys.path.insert(0, '../')
 import pandas as pd
-import db_connections
+from unused_scripts import db_connections
 import logging
 import traceback
 import numpy as np
@@ -167,7 +167,7 @@ ORDER BY projectid
 
 
 def run():
-    from useful_functions import ensure_directory
+    from utils.useful_functions import ensure_directory
     sql = "select id as project_id, goal, amount_pledged, backer_count, category, year(start_date) as start_year, currency from project  where currency is not Null"
     db = db_connections.get_fungrosencrantz_schema('kickstarter')
     df = pd.read_sql(sql=sql, con=db.executable)

@@ -13,7 +13,7 @@ import sys
 if '../' not in sys.path:
     sys.path.insert(0, '../')
 import pandas as pd
-import db_connections
+from unused_scripts import db_connections
 
 START_DATE = '2015-01-01'
 END_DATE = '2015-12-31'

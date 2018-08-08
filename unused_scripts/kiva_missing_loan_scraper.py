@@ -2,13 +2,10 @@ import sys
 
 if '../' not in sys.path:
     sys.path.insert(0, '../')
-import db_connections
+from unused_scripts import db_connections
 import logging
-import useful_functions
-import kiva_api
 import traceback
 import json
-import shutil
 from newest_scraper import *
 from kiva_api import KivaAPI
 

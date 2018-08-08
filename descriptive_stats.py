@@ -7,7 +7,7 @@ import os
 import pandas as pd
 from currency_converter import CurrencyConverter, RateNotFoundError
 
-import db_connections
+from unused_scripts import db_connections
 
 
 def get_kickstarter_stats(db):

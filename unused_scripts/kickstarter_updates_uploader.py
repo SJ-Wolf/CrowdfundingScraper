@@ -4,7 +4,7 @@ if '../' not in sys.path:
     sys.path.insert(0, '../')
 import ciso8601
 import os
-import db_connections
+from unused_scripts import db_connections
 import subprocess
 import lxml.html
 import mysql.connector
