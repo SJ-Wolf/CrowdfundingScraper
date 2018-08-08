@@ -7,8 +7,9 @@ ca-certificates=2018.03.07=0
 certifi=2018.4.16=py37_0
 cffi=1.11.5=py37h9745a5d_0
 chardet=3.0.4=py37_1
-cryptography=2.2.2=py37h14c3975_0
-cython=0.28.4=py37hf484d3e_0
+cryptography=2.3=py37hb7f436b_0
+cryptography-vectors=2.3=py37_0
+cython=0.28.5=py37hf484d3e_0
 dateparser=0.7.0=py_0
 icu=58.2=h9c2bf20_1
 idna=2.7=py37_0
@@ -21,7 +22,7 @@ libgfortran-ng=7.2.0=hdf63c60_3
 libstdcxx-ng=7.2.0=hdf63c60_3
 libxml2=2.9.8=h26e45fe_1
 libxslt=1.1.32=h1312cb7_0
-lxml=4.2.3=py37hf71bdeb_0
+lxml=4.2.4=py37hf71bdeb_0
 mkl=2018.0.3=1
 mkl_fft=1.0.4=py37h4414c95_1
 mkl_random=1.0.1=py37h4414c95_1
@@ -29,7 +30,7 @@ ncurses=6.1=hf484d3e_0
 numpy=1.15.0=py37h1b885b7_0
 numpy-base=1.15.0=py37h3dfced4_0
 openssl=1.0.2o=h14c3975_1
-pandas=0.23.3=py37h04863e7_0
+pandas=0.23.4=py37h04863e7_0
 pip=10.0.1=py37_0
 pycparser=2.18=py37_1
 pyopenssl=18.0.0=py37_0
@@ -41,7 +42,7 @@ readline=7.0=ha6073c6_4
 regex=2018.07.11=py37h14c3975_0
 requests=2.19.1=py37_0
 selenium=3.13.0=py37h14c3975_0
-setuptools=39.2.0=py37_0
+setuptools=40.0.0=py37_0
 six=1.11.0=py37_1
 sqlite=3.24.0=h84994c4_0
 tk=8.6.7=hc745277_3
