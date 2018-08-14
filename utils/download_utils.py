@@ -152,10 +152,9 @@ def get_latest_free_proxy_list(refresh=False):
 
     data = []
     for row_elem in row_elems:
-        row = []
-        for col in row_elem.xpath('./td/text()'):
-            row.append(col)
-        assert len(row) == len(headers)
+        row = ["" if x.text is None else x.text for x in row_elem.xpath("./td")]
+        if len(row) != len(headers):
+            raise AssertionError("len(row) != len(headers)")
         data.append(row)
 
     df = pd.DataFrame(data, columns=headers)
@@ -238,3 +237,7 @@ def download_urls_through_proxies(proxy_strings, urls, wait_time_between_request
 
     print('joining processes')
     [w.terminate() for w in workers]
+
+
+if __name__ == '__main__':
+    print(get_latest_free_proxy_list(refresh=True))
