@@ -20,7 +20,6 @@ def try_run_function(f, failed_text):
         except Exception:
             logging.error('Message sending failed too!')
             logging.error(traceback.format_exc())
-        raise
 
 
 def sql_create_statements_to_disk(database_names: list):
