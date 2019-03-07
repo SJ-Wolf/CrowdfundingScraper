@@ -9,7 +9,7 @@ webrobots_downloads/
 *.json
 !proxy_servers.json
 *.db
-!empty_*.db
+!*_empty.db
 *.xlsx
 *.pickle
 *.html
