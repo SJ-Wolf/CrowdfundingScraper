@@ -45,7 +45,7 @@ def insert_into_table(df, table_name, conn, replace=False):
     if table_extra_columns:
         logging.info(f'Data has fewer columns than table {table_name}. Missing: {table_extra_columns}')
 
-    df_columns_str = ', '.join(restricted_df.columns)
+    df_columns_str = ', '.join(['"' + x + '"' for x in restricted_df.columns])
     question_mark_str = ','.join(['?'] * len(restricted_df.columns))
     conn.executemany(
         ('replace' if replace else 'insert or ignore')
