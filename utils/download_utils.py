@@ -88,18 +88,7 @@ def get_url(url, wait_time=0, requests_session=None, verbose=False, overwrite=Fa
         if overwrite:
             results = []
         else:
-            try:
-                cur.execute('select page_source from html where url = ?', (url,))
-            except sqlite3.OperationalError:
-                cur.execute("""
-                    create table html
-                    (
-                        url TEXT
-                            primary key,
-                        page_source text
-                    )
-                    ;""")
-                cur.execute('select page_source from html where url = ?', (url,))
+            cur.execute('select page_source from html where url = ?', (url,))
             results = cur.fetchall()
         if len(results) == 0:
             page_source = get_page_source(url, requests_session=requests_session, wait_time=wait_time)
