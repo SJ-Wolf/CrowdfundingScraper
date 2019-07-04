@@ -612,7 +612,8 @@ def update():
         per_second = 5
 
     project_html_iterator = (get_raw_project_data_from_tree(lxml.html.fromstring(page_source))
-                             for page_source in get_urls(urls, per_second=per_second, overwrite=True, max_num_proxies=num_proxies))
+                             for page_source in get_urls(urls, per_second=per_second, overwrite=True, max_num_proxies=num_proxies)
+                             if page_source is not None)
     logging.debug('parsing')
     parse_kickstarter_files(chunksize=1000, limit=None,
                             raw_project_data_iterator=project_html_iterator)
